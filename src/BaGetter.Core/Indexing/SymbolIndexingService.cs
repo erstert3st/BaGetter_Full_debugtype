@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NuGet.Packaging;
-
+using SharpPdb.Managed;
 namespace BaGetter.Core;
 
 // Based off: https://github.com/NuGet/NuGetGallery/blob/master/src/NuGetGallery/Services/SymbolPackageUploadService.cs
@@ -37,6 +37,18 @@ public class SymbolIndexingService : ISymbolIndexingService
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+    // could be replaced with try catch portable pdb... 
+    private static bool IsPortablePdb(Stream pdbStream)
+    {
+        // Check for 'BSJB' signature at the start of the file
+        byte[] bsjbSignature = { 0x42, 0x53, 0x4A, 0x42 };
+        byte[] fileHeader = new byte[bsjbSignature.Length];
+        pdbStream.Read(fileHeader, 0, fileHeader.Length);
+        pdbStream.Seek(0, SeekOrigin.Begin); // Reset stream position
+
+        return bsjbSignature.SequenceEqual(fileHeader);
+    }
+
 
     public async Task<SymbolIndexingResult> IndexAsync(Stream stream, CancellationToken cancellationToken)
     {
@@ -142,22 +154,60 @@ public class SymbolIndexingService : ISymbolIndexingService
         try
         {
             using var rawPdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken);
+            using var rawPdbStream2 = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken);
+            //TODO solution from file or any other not that xD
+            // make "temp file you need to find the guuid"
             pdbStream = await rawPdbStream.AsTemporaryFileStreamAsync(cancellationToken);
 
-            string signature;
-            using (var pdbReaderProvider = MetadataReaderProvider.FromPortablePdbStream(pdbStream, MetadataStreamOptions.LeaveOpen))
-            {
-                var reader = pdbReaderProvider.GetMetadataReader();
-                var id = new BlobContentId(reader.DebugMetadataHeader.Id);
+            var tmpStream = rawPdbStream;
+            string signature = "";
+            string fileName = "";
+            string key = "";
+            var isPortablePdb = IsPortablePdb(pdbStream);
 
-                signature = id.Guid.ToString("N").ToUpperInvariant();
+
+            //todo fix these
+            if (isPortablePdb)
+            {
+                using (var pdbReaderProvider = MetadataReaderProvider.FromPortablePdbStream(pdbStream, MetadataStreamOptions.LeaveOpen))
+                {
+
+                    var reader = pdbReaderProvider.GetMetadataReader();
+                    var id = new BlobContentId(reader.DebugMetadataHeader.Id);
+
+                    signature = id.Guid.ToString("N").ToUpperInvariant();
+                }
+            }
+            else
+            {
+
+                string fullPath = Path.GetFullPath(pdbPath);
+                Console.WriteLine($"Full path: {fullPath}");
+                string outputPath = Path.Combine(Path.GetTempPath(), "pdb", Path.GetFileName(pdbPath));
+                using (var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
+                {
+                    await rawPdbStream2.CopyToAsync(fileStream);
+                }
+
+                using (var pdbReader = PdbFileReader.OpenPdb(outputPath))
+                {
+                    signature = pdbReader.Guid.ToString("N").ToUpperInvariant();
+
+                };
+                Console.WriteLine("here");
             }
 
-            var fileName = Path.GetFileName(pdbPath).ToLowerInvariant();
-            var key = $"{signature}ffffffff";
+
+            fileName = Path.GetFileName(pdbPath).ToLowerInvariant();
+            key = $"{signature}ffffffff";
 
             pdbStream.Position = 0;
             result = new PortablePdb(fileName, key, pdbStream);
+        }
+        catch (Exception ex)
+        {
+            var test = ex.Message;
+            Console.WriteLine("exception new: " + test);
         }
         finally
         {
