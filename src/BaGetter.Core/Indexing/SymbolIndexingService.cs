@@ -9,7 +9,11 @@ using Microsoft.Extensions.Logging;
 using NuGet.Packaging;
 using SharpPdb.Managed;
 namespace BaGetter.Core;
-
+// Todo:
+//  Tmpfile Handling
+//  Unit Test
+//
+// Done: Test on WSL (Y) 
 // Based off: https://github.com/NuGet/NuGetGallery/blob/master/src/NuGetGallery/Services/SymbolPackageUploadService.cs
 // Based off: https://github.com/NuGet/NuGet.Jobs/blob/master/src/Validation.Symbols/SymbolsValidatorService.cs#L44
 public class SymbolIndexingService : ISymbolIndexingService
@@ -164,14 +168,13 @@ public class SymbolIndexingService : ISymbolIndexingService
             string fileName = "";
             string key = "";
             var isPortablePdb = IsPortablePdb(pdbStream);
-
+            //isPortablePdb = true;
 
             //todo fix these
             if (isPortablePdb)
             {
                 using (var pdbReaderProvider = MetadataReaderProvider.FromPortablePdbStream(pdbStream, MetadataStreamOptions.LeaveOpen))
-                {
-
+                { 
                     var reader = pdbReaderProvider.GetMetadataReader();
                     var id = new BlobContentId(reader.DebugMetadataHeader.Id);
 
@@ -181,14 +184,24 @@ public class SymbolIndexingService : ISymbolIndexingService
             else
             {
 
-                string fullPath = Path.GetFullPath(pdbPath);
-                Console.WriteLine($"Full path: {fullPath}");
-                string outputPath = Path.Combine(Path.GetTempPath(), "pdb", Path.GetFileName(pdbPath));
+                //string fullPath = Path.GetFullPath(pdbPath);
+                //Console.WriteLine($"Full path: {fullPath}");
+                string outputPath = Path.Combine(Path.GetTempPath(), "pdb");
+                Directory.CreateDirectory(outputPath);
+                outputPath = Path.Combine(outputPath, Path.GetFileName(pdbPath));
+                ////fix me
+                //if (File.Exists(fullPath))
+                //{
+                //    File.Delete(fullPath);
+                //}
                 using (var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
                 {
                     await rawPdbStream2.CopyToAsync(fileStream);
                 }
-
+                if (File.Exists(outputPath))
+                {
+                    Console.WriteLine("File exists");
+                }
                 using (var pdbReader = PdbFileReader.OpenPdb(outputPath))
                 {
                     signature = pdbReader.Guid.ToString("N").ToUpperInvariant();
