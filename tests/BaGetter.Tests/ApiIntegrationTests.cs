@@ -16,6 +16,9 @@ public class ApiIntegrationTests : IDisposable
     private readonly Stream _packageStream;
     private readonly Stream _symbolPackageStream;
 
+    private readonly Stream _packageFullStream;
+    private readonly Stream _symbolPackageFullStream;
+
     private readonly ITestOutputHelper _output;
 
     public ApiIntegrationTests(ITestOutputHelper output)
@@ -26,6 +29,9 @@ public class ApiIntegrationTests : IDisposable
 
         _packageStream = TestResources.GetResourceStream(TestResources.Package);
         _symbolPackageStream = TestResources.GetResourceStream(TestResources.SymbolPackage);
+
+        _packageFullStream = TestResources.GetResourceStream(TestResources.FullPackage);
+        _symbolPackageFullStream = TestResources.GetResourceStream(TestResources.FullSymbolPackage);
     }
 
     [Fact]
@@ -384,6 +390,32 @@ public class ApiIntegrationTests : IDisposable
 
         using var response = await _client.GetAsync(
             "api/download/symbols/testdata.pdb/16F71ED8DD574AA2AD4A22D29E9C981Bffffffff/testdata.pdb");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task FullSymbolDownloadReturnsOk()
+    {
+        //await _app.AddSymbolPackageAsync(_symbolPackageFullStream);
+        await _app.AddPackageAsync(_packageFullStream);
+        await _app.AddSymbolPackageAsync(_symbolPackageFullStream);
+
+        using var response = await _client.GetAsync(
+            "api/download/symbols/mycarstest.pdb/64246C5E2AA54BE387DA652527A7A125ffffffff/mycarstest.pdb");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task BaGetterSymbolsWithoutNugets()
+    {
+        //await _app.AddSymbolPackageAsync(_symbolPackageFullStream);
+        await _app.AddPackageAsync(_packageFullStream);
+        await _app.AddSymbolPackageAsync(_symbolPackageFullStream);
+
+        using var response = await _client.GetAsync(
+            "api/download/symbols/mycarstest.pdb/64246C5E2AA54BE387DA652527A7A125ffffffff/mycarstest.pdb");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
