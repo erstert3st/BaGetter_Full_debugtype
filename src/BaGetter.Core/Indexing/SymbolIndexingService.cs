@@ -9,11 +9,7 @@ using Microsoft.Extensions.Logging;
 using NuGet.Packaging;
 using SharpPdb.Managed;
 namespace BaGetter.Core;
-// Todo:
-//  Tmpfile Handling
-//  Unit Test
-//
-// Done: Test on WSL (Y) 
+
 // Based off: https://github.com/NuGet/NuGetGallery/blob/master/src/NuGetGallery/Services/SymbolPackageUploadService.cs
 // Based off: https://github.com/NuGet/NuGet.Jobs/blob/master/src/Validation.Symbols/SymbolsValidatorService.cs#L44
 public class SymbolIndexingService : ISymbolIndexingService
@@ -41,7 +37,7 @@ public class SymbolIndexingService : ISymbolIndexingService
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
-    // could be replaced with try catch portable pdb... 
+    // could be replaced with try catch open portable pdb... 
     private static bool IsPortablePdb(Stream pdbStream)
     {
         // Check for 'BSJB' signature at the start of the file
@@ -52,7 +48,6 @@ public class SymbolIndexingService : ISymbolIndexingService
 
         return bsjbSignature.SequenceEqual(fileHeader);
     }
-
 
     public async Task<SymbolIndexingResult> IndexAsync(Stream stream, CancellationToken cancellationToken)
     {
@@ -154,17 +149,17 @@ public class SymbolIndexingService : ISymbolIndexingService
         // See: https://github.com/NuGet/NuGet.Jobs/blob/master/src/Validation.Symbols/SymbolsValidatorService.cs#L170
         Stream pdbStream = null;
         PortablePdb result = null;
-        var tmpPdbFile = "";
+        string tmpPdbFile = "";
 
         try
         {
-            var rawPdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken);
+            using var rawPdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken);
             pdbStream = await rawPdbStream.AsTemporaryFileStreamAsync(cancellationToken);
 
             string signature = "";
             string fileName = "";
             string key = "";
-            var isPortablePdb = IsPortablePdb(pdbStream);
+            bool isPortablePdb = IsPortablePdb(pdbStream);
 
             if (isPortablePdb)
             {
@@ -197,11 +192,6 @@ public class SymbolIndexingService : ISymbolIndexingService
 
             pdbStream.Position = 0;
             result = new PortablePdb(fileName, key, pdbStream);
-        }
-        catch (Exception ex)
-        {
-            var test = ex.Message;
-            Console.WriteLine("exception new: " + test);
         }
         finally
         {
