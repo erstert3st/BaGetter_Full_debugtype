@@ -178,28 +178,17 @@ public class SymbolIndexingService : ISymbolIndexingService
             }
             else
             {
-
                 tmpPdbFile = Path.GetTempFileName();
                 using (var fileStream = new FileStream(tmpPdbFile, FileMode.Create, FileAccess.Write))
                 {
                     await pdbStream.CopyToAsync(fileStream);
                 }
 
-                if (new FileInfo(tmpPdbFile).Length == 0)
-                {
-                    throw new InvalidOperationException("A positive capacity must be specified for a Memory Mapped File backed by an empty file.");
-                }
-                if (File.Exists(tmpPdbFile))
-                {
-                    Console.WriteLine("File exists");
-                }
                 using (var pdbReader = PdbFileReader.OpenPdb(tmpPdbFile))
                 {
                     signature = pdbReader.Guid.ToString("N").ToUpperInvariant();
 
                 };
-                Console.WriteLine("here");
-
             }
 
 
