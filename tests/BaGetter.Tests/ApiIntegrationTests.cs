@@ -16,8 +16,8 @@ public class ApiIntegrationTests : IDisposable
     private readonly Stream _packageStream;
     private readonly Stream _symbolPackageStream;
 
-    private readonly Stream _packageFullStream;
-    private readonly Stream _symbolPackageFullStream;
+    private readonly Stream _packageFullDebugStream;
+    private readonly Stream _symbolPackageFullDebugStream;
 
     private readonly ITestOutputHelper _output;
 
@@ -30,8 +30,8 @@ public class ApiIntegrationTests : IDisposable
         _packageStream = TestResources.GetResourceStream(TestResources.Package);
         _symbolPackageStream = TestResources.GetResourceStream(TestResources.SymbolPackage);
 
-        _packageFullStream = TestResources.GetResourceStream(TestResources.FullPackage);
-        _symbolPackageFullStream = TestResources.GetResourceStream(TestResources.FullSymbolPackage);
+        _packageFullDebugStream = TestResources.GetResourceStream(TestResources.FullPackage);
+        _symbolPackageFullDebugStream = TestResources.GetResourceStream(TestResources.FullSymbolPackage);
     }
 
     [Fact]
@@ -397,12 +397,11 @@ public class ApiIntegrationTests : IDisposable
     [Fact]
     public async Task FullSymbolDownloadReturnsOk()
     {
-        //await _app.AddSymbolPackageAsync(_symbolPackageFullStream);
-        await _app.AddPackageAsync(_packageFullStream);
-        await _app.AddSymbolPackageAsync(_symbolPackageFullStream);
+        await _app.AddPackageAsync(_packageFullDebugStream);
+        await _app.AddSymbolPackageAsync(_symbolPackageFullDebugStream);
 
         using var response = await _client.GetAsync(
-            "api/download/symbols/mycarstest.pdb/64246C5E2AA54BE387DA652527A7A125ffffffff/mycarstest.pdb");
+            "api/download/symbols/testdatafulldebug.pdb/6B7F98718ECF459B9F0CB85FAF35F0C7ffffffff/testdatafulldebug.pdb");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -410,12 +409,11 @@ public class ApiIntegrationTests : IDisposable
     [Fact]
     public async Task BaGetterSymbolsWithoutNugets()
     {
-        //await _app.AddSymbolPackageAsync(_symbolPackageFullStream);
-        await _app.AddPackageAsync(_packageFullStream);
-        await _app.AddSymbolPackageAsync(_symbolPackageFullStream);
+        await _app.AddPackageAsync(_symbolPackageFullDebugStream);
+        await _app.AddSymbolPackageAsync(_symbolPackageFullDebugStream);
 
         using var response = await _client.GetAsync(
-            "api/download/symbols/mycarstest.pdb/64246C5E2AA54BE387DA652527A7A125ffffffff/mycarstest.pdb");
+            "api/download/symbols/testdatafulldebug.pdb/6B7F98718ECF459B9F0CB85FAF35F0C7ffffffff/testdatafulldebug.pdb");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

@@ -48,7 +48,7 @@ public class SymbolIndexingService : ISymbolIndexingService
         byte[] bsjbSignature = { 0x42, 0x53, 0x4A, 0x42 };
         byte[] fileHeader = new byte[bsjbSignature.Length];
         pdbStream.Read(fileHeader, 0, fileHeader.Length);
-        pdbStream.Seek(0, SeekOrigin.Begin); // Reset stream position
+        pdbStream.Seek(0, SeekOrigin.Begin);
 
         return bsjbSignature.SequenceEqual(fileHeader);
     }
@@ -154,27 +154,22 @@ public class SymbolIndexingService : ISymbolIndexingService
         // See: https://github.com/NuGet/NuGet.Jobs/blob/master/src/Validation.Symbols/SymbolsValidatorService.cs#L170
         Stream pdbStream = null;
         PortablePdb result = null;
+        var tmpPdbFile = "";
 
         try
         {
-            using var rawPdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken);
-            using var rawPdbStream2 = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken);
-            //TODO solution from file or any other not that xD
-            // make "temp file you need to find the guuid"
+            var rawPdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken);
             pdbStream = await rawPdbStream.AsTemporaryFileStreamAsync(cancellationToken);
 
-            var tmpStream = rawPdbStream;
             string signature = "";
             string fileName = "";
             string key = "";
             var isPortablePdb = IsPortablePdb(pdbStream);
-            //isPortablePdb = true;
 
-            //todo fix these
             if (isPortablePdb)
             {
                 using (var pdbReaderProvider = MetadataReaderProvider.FromPortablePdbStream(pdbStream, MetadataStreamOptions.LeaveOpen))
-                { 
+                {
                     var reader = pdbReaderProvider.GetMetadataReader();
                     var id = new BlobContentId(reader.DebugMetadataHeader.Id);
 
@@ -184,30 +179,27 @@ public class SymbolIndexingService : ISymbolIndexingService
             else
             {
 
-                //string fullPath = Path.GetFullPath(pdbPath);
-                //Console.WriteLine($"Full path: {fullPath}");
-                string outputPath = Path.Combine(Path.GetTempPath(), "pdb");
-                Directory.CreateDirectory(outputPath);
-                outputPath = Path.Combine(outputPath, Path.GetFileName(pdbPath));
-                ////fix me
-                //if (File.Exists(fullPath))
-                //{
-                //    File.Delete(fullPath);
-                //}
-                using (var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
+                tmpPdbFile = Path.GetTempFileName();
+                using (var fileStream = new FileStream(tmpPdbFile, FileMode.Create, FileAccess.Write))
                 {
-                    await rawPdbStream2.CopyToAsync(fileStream);
+                    await pdbStream.CopyToAsync(fileStream);
                 }
-                if (File.Exists(outputPath))
+
+                if (new FileInfo(tmpPdbFile).Length == 0)
+                {
+                    throw new InvalidOperationException("A positive capacity must be specified for a Memory Mapped File backed by an empty file.");
+                }
+                if (File.Exists(tmpPdbFile))
                 {
                     Console.WriteLine("File exists");
                 }
-                using (var pdbReader = PdbFileReader.OpenPdb(outputPath))
+                using (var pdbReader = PdbFileReader.OpenPdb(tmpPdbFile))
                 {
                     signature = pdbReader.Guid.ToString("N").ToUpperInvariant();
 
                 };
                 Console.WriteLine("here");
+
             }
 
 
@@ -227,6 +219,10 @@ public class SymbolIndexingService : ISymbolIndexingService
             if (result == null)
             {
                 pdbStream?.Dispose();
+            }
+            if (!string.IsNullOrEmpty(tmpPdbFile) && File.Exists(tmpPdbFile))
+            {
+                File.Delete(tmpPdbFile);
             }
         }
 
